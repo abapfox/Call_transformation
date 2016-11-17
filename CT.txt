@@ -1,0 +1,201 @@
+*&---------------------------------------------------------------------*
+*& Report  YFOX_CALLTRANS
+*& "Cortesia ABAPFOX!
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+report yfox_calltrans.
+
+parameters p_carrid type spfli-carrid.
+
+form download using p_carrid.
+
+
+  "-->Pool------------------------------------------------#•#•#"
+  data: l_path        type                   string value 'C:\TEMP',
+        t_lfile_table type                   filetable,
+        w_lfile_table like line of           t_lfile_table,
+        l_rc          type                   i,
+        l_dom         type ref to            if_ixml_element,
+        m_document    type ref to            if_ixml_document,
+        lo_data       type ref to            data,
+        g_ixml        type ref to            if_ixml,
+        w_string      type                   xstring,
+        l_size        type                   i,
+        w_result      type                   i,
+        w_line        type                   string,
+        it_xml        type                   dcxmllines,
+        s_xml         like line of           it_xml,
+        w_rc          like                   sy-subrc,
+        sysubrc       type                   sysubrc,
+        m_xmldoc      type ref to            cl_xml_document,
+        l_table       type                   string,
+        l_xml         type                   xstring.
+
+  data: begin of gw_yall,
+          spfli   type standard table of spfli,
+          sflight type standard table of sflight,
+          sbook   type standard table of sbook,
+        end of gw_yall.
+
+  data: gt_yall like standard table of gw_yall.
+
+  data: gt_xstring type table of xstring.
+  "-->Pool------------------------------------------------#•#•#"
+
+  "...CALL POPUP
+  call method cl_gui_frontend_services=>directory_browse
+    exporting
+      window_title         = 'FILE PATH'
+      initial_folder       = 'C:\TEMP\'
+    changing
+      selected_folder      = l_path
+    exceptions
+      cntl_error           = 1
+      error_no_gui         = 2
+      not_supported_by_gui = 3
+      others               = 4.
+
+  check not l_path is initial.
+
+  if p_carrid is not initial.
+
+    select * from spfli   into table gw_yall-spfli where carrid = p_carrid.
+    select * from sflight   into table gw_yall-sflight where carrid = p_carrid.
+    select * from sbook   into table gw_yall-sbook where carrid = p_carrid.
+
+    append gw_yall to gt_yall.
+    clear gw_yall.
+
+  else. "-->Selecione ALL!
+
+    select * from spfli   into table gw_yall-spfli.
+    select * from sflight   into table gw_yall-sflight.
+    select * from sbook   into table gw_yall-sbook.
+
+  endif.
+
+  l_table = p_carrid.
+
+  if p_carrid is initial.
+    l_table = 'ALL'.
+  endif.
+
+  call transformation id
+    source table = gt_yall
+    result xml l_xml.
+
+
+  concatenate l_path
+              '\'
+              l_table
+              '.DAT'
+               into l_path.
+
+  refresh gt_xstring.
+  append l_xml to gt_xstring.
+
+  call method cl_gui_frontend_services=>gui_download
+    exporting
+      filename = l_path
+*     bin_filesize = l_size
+*     filetype = 'BIN'
+    changing
+      data_tab = gt_xstring
+    exceptions
+      others   = 24.
+
+  if sy-subrc = 0.
+    message 'Ok!!' type 'S'.
+  endif.
+
+
+endform.
+
+
+form upload using p_carrid.
+
+  "-->Pool------------------------------------------------#•#•#"
+  data: l_path        type                   string value 'C:\TEMP',
+        t_lfile_table type                   filetable,
+        w_lfile_table like line of           t_lfile_table,
+        l_rc          type                   i,
+        l_dom         type ref to            if_ixml_element,
+        m_document    type ref to            if_ixml_document,
+        lo_data       type ref to            data,
+        g_ixml        type ref to            if_ixml,
+        w_string      type                   xstring,
+        l_size        type                   i,
+        w_result      type                   i,
+        w_line        type                   string,
+        it_xml        type                   dcxmllines,
+        s_xml         like line of           it_xml,
+        w_rc          like                   sy-subrc,
+        sysubrc       type                   sysubrc,
+        m_xmldoc      type ref to            cl_xml_document,
+        l_table       type                   string.
+
+  data: begin of gw_yall,
+          spfli   type standard table of spfli,
+          sflight type standard table of sflight,
+          sbook   type standard table of sbook,
+        end of gw_yall.
+
+
+  data: gt_yall like standard table of gw_yall.
+
+  data: t_xstring type table of xstring,
+        w_xstring like line of  t_xstring.
+  "-->Pool------------------------------------------------#•#•#"
+
+
+  "...INSERIR HEADER FILE
+  refresh t_lfile_table[].
+  call method cl_gui_frontend_services=>file_open_dialog
+    exporting
+      window_title            = 'PARAMETER FILE'
+      file_filter             = '(*.dat)|*.dat|'
+      multiselection          = space
+    changing
+      file_table              = t_lfile_table
+      rc                      = l_rc
+    exceptions
+      file_open_dialog_failed = 1
+      cntl_error              = 2
+      error_no_gui            = 3
+      not_supported_by_gui    = 4
+      others                  = 5.
+
+  if sy-subrc = 0.
+    read table t_lfile_table into w_lfile_table index 1.
+    l_path = w_lfile_table-filename.
+  else.
+    return.
+  endif.
+
+  l_table = p_carrid.
+
+  if p_carrid is initial.
+    l_table = 'ALL'.
+  endif.
+
+  call method cl_gui_frontend_services=>gui_upload
+    exporting
+      filename = l_path
+    changing
+      data_tab = t_xstring
+    exceptions
+      others   = 24.
+
+  read table t_xstring into w_xstring index 1.
+
+  call transformation id
+  source xml w_xstring
+  result table = gt_yall.
+
+  loop at gt_yall into gw_yall.
+    "-->Atualize as suas tabelinhas, ou faça o que quiser com elas aqui!
+  endloop.
+
+endform.
